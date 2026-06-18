@@ -2,22 +2,49 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import api from "@/lib/api";
 import type { TaskListItem } from "@/lib/types";
 import { StatusBadge } from "@/components/StatusBadge";
 import { formatDate, formatPercent } from "@/lib/utils";
 import { SearchCheck, AlertTriangle, CheckCircle2, Clock } from "lucide-react";
 
+const INSPECTOR_ID = 1;
+const INSPECTOR_NAME = "质检员-孙丽";
+
 export default function WorkbenchPage() {
+  const router = useRouter();
   const [pending, setPending] = useState<TaskListItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [claimingTaskId, setClaimingTaskId] = useState<number | null>(null);
 
   useEffect(() => {
     api
-      .get<TaskListItem[]>("/inspections/pending")
+      .get<TaskListItem[]>("/inspections/pending", { params: { inspector_id: INSPECTOR_ID } })
       .then((r) => setPending(r.data))
       .finally(() => setLoading(false));
   }, []);
+
+  const handleStartInspection = async (taskId: number, e: React.MouseEvent) => {
+    e.preventDefault();
+    setClaimingTaskId(taskId);
+    try {
+      const res = await api.post(`/inspections/${taskId}/claim`, {
+        inspector_id: INSPECTOR_ID,
+        inspector_name: INSPECTOR_NAME,
+      });
+      if (res.data.claimed) {
+        router.push(`/workbench/${taskId}`);
+      } else {
+        alert(res.data.message || "该任务已被他人领取，请选择其他任务");
+        setPending((prev) => prev.filter((t) => t.id !== taskId));
+      }
+    } catch (err: any) {
+      alert(err?.response?.data?.detail || "领取任务失败，请重试");
+    } finally {
+      setClaimingTaskId(null);
+    }
+  };
 
   const inconsistent = pending.filter(
     (t) => t.consistency_status === "inconsistent"
@@ -137,12 +164,13 @@ export default function WorkbenchPage() {
                       {formatDate(t.updated_at)}
                     </td>
                     <td className="px-5 py-3.5 text-right">
-                      <Link
-                        href={`/workbench/${t.id}`}
+                      <button
                         className="btn btn-primary"
+                        onClick={(e) => handleStartInspection(t.id, e)}
+                        disabled={claimingTaskId === t.id}
                       >
-                        开始质检
-                      </Link>
+                        {claimingTaskId === t.id ? "领取中..." : "开始质检"}
+                      </button>
                     </td>
                   </tr>
                 ))

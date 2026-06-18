@@ -59,6 +59,9 @@ class AnnotationTaskCreate(AnnotationTaskBase):
 class AnnotationTaskOut(AnnotationTaskBase):
     id: int
     status: TaskStatus
+    claimed_by: Optional[int] = None
+    claimed_by_name: Optional[str] = None
+    claimed_at: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
 

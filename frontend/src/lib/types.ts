@@ -67,6 +67,9 @@ export interface AnnotationTaskDetail {
   content: string;
   extra: Record<string, any> | null;
   status: TaskStatus;
+  claimed_by: number | null;
+  claimed_by_name: string | null;
+  claimed_at: string | null;
   created_at: string;
   updated_at: string;
   annotations: AnnotationOut | null;

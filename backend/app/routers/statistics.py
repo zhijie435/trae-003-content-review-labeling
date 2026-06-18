@@ -1,11 +1,34 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import func, desc
 
 from ..database import get_db
 from .. import models, schemas
 
 router = APIRouter(prefix="/api/statistics", tags=["数据统计"])
+
+
+def _get_latest_inspection_by_task(db: Session):
+    subquery = (
+        db.query(
+            models.Inspection.task_id,
+            func.max(models.Inspection.created_at).label("max_created"),
+        )
+        .filter(models.Inspection.result != models.InspectionResult.PENDING)
+        .group_by(models.Inspection.task_id)
+        .subquery()
+    )
+
+    latest_inspections = (
+        db.query(models.Inspection)
+        .join(
+            subquery,
+            (models.Inspection.task_id == subquery.c.task_id)
+            & (models.Inspection.created_at == subquery.c.max_created),
+        )
+        .all()
+    )
+    return latest_inspections
 
 
 @router.get("", response_model=schemas.StatisticsOut)
@@ -53,24 +76,18 @@ def get_statistics(db: Session = Depends(get_db)):
         consistent_count / double_annotated if double_annotated > 0 else 0.0
     )
 
-    pass_count = (
-        db.query(func.count(models.Inspection.id))
-        .filter(models.Inspection.result == models.InspectionResult.PASS)
-        .scalar()
-        or 0
-    )
-    fail_count = (
-        db.query(func.count(models.Inspection.id))
-        .filter(models.Inspection.result == models.InspectionResult.FAIL)
-        .scalar()
-        or 0
-    )
-    arbitrated_count = (
-        db.query(func.count(models.Inspection.id))
-        .filter(models.Inspection.result == models.InspectionResult.ARBITRATED)
-        .scalar()
-        or 0
-    )
+    latest_inspections = _get_latest_inspection_by_task(db)
+    pass_count = 0
+    fail_count = 0
+    arbitrated_count = 0
+    for insp in latest_inspections:
+        if insp.result == models.InspectionResult.PASS:
+            pass_count += 1
+        elif insp.result == models.InspectionResult.FAIL:
+            fail_count += 1
+        elif insp.result == models.InspectionResult.ARBITRATED:
+            arbitrated_count += 1
+
     total_inspections = pass_count + fail_count + arbitrated_count
     pass_rate = (
         (pass_count + arbitrated_count) / total_inspections

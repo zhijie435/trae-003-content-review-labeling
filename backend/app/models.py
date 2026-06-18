@@ -51,6 +51,9 @@ class AnnotationTask(Base):
     content = Column(Text, nullable=False)
     extra = Column(JSON, nullable=True)
     status = Column(Enum(TaskStatus), default=TaskStatus.PENDING)
+    claimed_by = Column(Integer, nullable=True)
+    claimed_by_name = Column(String(50), nullable=True)
+    claimed_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

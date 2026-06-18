@@ -39,6 +39,9 @@ const LABEL_LABELS: Record<string, string> = {
   suggestion: "处理建议",
 };
 
+const INSPECTOR_ID = 1;
+const INSPECTOR_NAME = "质检员-孙丽";
+
 export default function InspectionDetailPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
@@ -48,6 +51,7 @@ export default function InspectionDetailPage() {
   const [inspections, setInspections] = useState<InspectionOut[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [claimed, setClaimed] = useState(false);
 
   const [result, setResult] = useState<InspectionSubmit["result"]>("pending");
   const [comment, setComment] = useState("");
@@ -59,13 +63,26 @@ export default function InspectionDetailPage() {
   });
   const [toast, setToast] = useState<{ type: "success" | "error"; msg: string } | null>(null);
 
+  const releaseTask = useCallback(async () => {
+    if (!taskId || !claimed) return;
+    try {
+      await api.post(`/inspections/${taskId}/release`, {
+        inspector_id: INSPECTOR_ID,
+      });
+    } catch (e) {
+      console.error("Failed to release task:", e);
+    }
+  }, [taskId, claimed]);
+
   useEffect(() => {
     if (!taskId) return;
-    Promise.all([
-      api.get<AnnotationTaskDetail>(`/tasks/${taskId}`),
-      api.get<InspectionOut[]>(`/tasks/${taskId}/inspections`),
-    ])
-      .then(([t, insp]) => {
+
+    const initTask = async () => {
+      try {
+        const [t, insp] = await Promise.all([
+          api.get<AnnotationTaskDetail>(`/tasks/${taskId}`),
+          api.get<InspectionOut[]>(`/tasks/${taskId}/inspections`),
+        ]);
         setTask(t.data);
         setInspections(insp.data);
         if (t.data.annotations) {
@@ -76,22 +93,55 @@ export default function InspectionDetailPage() {
             suggestion: ann.result_a.suggestion,
           });
         }
-      })
-      .finally(() => setLoading(false));
-  }, [taskId]);
 
-  const handleSubmit = async () => {
+        if (!t.data.claimed_by || t.data.claimed_by !== INSPECTOR_ID) {
+          const claimRes = await api.post(`/inspections/${taskId}/claim`, {
+            inspector_id: INSPECTOR_ID,
+            inspector_name: INSPECTOR_NAME,
+          });
+          if (!claimRes.data.claimed) {
+            setToast({ type: "error", msg: claimRes.data.message || "该任务已被他人领取" });
+            setTimeout(() => router.push("/workbench"), 1500);
+            return;
+          }
+        }
+        setClaimed(true);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    initTask();
+
+    const handleBeforeUnload = () => {
+      if (claimed && !submitting) {
+        navigator.sendBeacon(
+          `/api/inspections/${taskId}/release`,
+          JSON.stringify({ inspector_id: INSPECTOR_ID })
+        );
+      }
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+      if (claimed && !submitting) {
+        releaseTask();
+      }
+    };
+  }, [taskId, router, claimed, submitting, releaseTask]);
+
+  const submitWithResult = useCallback(async (submitResult: InspectionSubmit["result"]) => {
     if (!taskId) return;
-    if (result === "pending") {
+    if (submitResult === "pending") {
       setToast({ type: "error", msg: "请选择质检结果" });
       return;
     }
     const payload: InspectionSubmit = {
-      result,
+      result: submitResult,
       comment: comment || undefined,
       score: score === "" ? undefined : Number(score),
     };
-    if (result === "arbitrated") {
+    if (submitResult === "arbitrated") {
       if (!finalAnnotation.risk_level || !finalAnnotation.category || !finalAnnotation.suggestion) {
         setToast({ type: "error", msg: "仲裁时需要填写完整的最终标注结果" });
         return;
@@ -101,7 +151,13 @@ export default function InspectionDetailPage() {
 
     setSubmitting(true);
     try {
-      await api.post<InspectionOut>(`/inspections/${taskId}`, payload);
+      await api.post<InspectionOut>(`/inspections/${taskId}`, payload, {
+        params: {
+          inspector_id: INSPECTOR_ID,
+          inspector_name: INSPECTOR_NAME,
+        },
+      });
+      setClaimed(false);
       setToast({ type: "success", msg: "质检提交成功" });
       setTimeout(() => router.push("/workbench"), 800);
     } catch (e: any) {
@@ -113,7 +169,11 @@ export default function InspectionDetailPage() {
       setSubmitting(false);
       setTimeout(() => setToast(null), 3000);
     }
-  };
+  }, [taskId, comment, score, finalAnnotation, router]);
+
+  const handleSubmit = useCallback(() => {
+    submitWithResult(result);
+  }, [submitWithResult, result]);
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
@@ -130,21 +190,21 @@ export default function InspectionDetailPage() {
 
       if (e.key === "1") {
         setResult("pass");
-        setTimeout(() => handleSubmit(), 50);
+        submitWithResult("pass");
       } else if (e.key === "2") {
         setResult("arbitrated");
       } else if (e.key === "3") {
         setResult("fail");
-        setTimeout(() => handleSubmit(), 50);
+        submitWithResult("fail");
       } else if (e.key === "Enter") {
         if (result !== "pending") {
-          handleSubmit();
+          submitWithResult(result);
         }
       } else if (e.key === "Escape") {
         router.back();
       }
     },
-    [result, submitting, router]
+    [result, submitting, router, submitWithResult]
   );
 
   useEffect(() => {
