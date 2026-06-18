@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import api from "@/lib/api";
 import type {
@@ -114,6 +114,43 @@ export default function InspectionDetailPage() {
       setTimeout(() => setToast(null), 3000);
     }
   };
+
+  const handleKeyDown = useCallback(
+    (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      if (
+        target.tagName === "INPUT" ||
+        target.tagName === "TEXTAREA" ||
+        target.tagName === "SELECT" ||
+        target.isContentEditable
+      ) {
+        return;
+      }
+      if (submitting) return;
+
+      if (e.key === "1") {
+        setResult("pass");
+        setTimeout(() => handleSubmit(), 50);
+      } else if (e.key === "2") {
+        setResult("arbitrated");
+      } else if (e.key === "3") {
+        setResult("fail");
+        setTimeout(() => handleSubmit(), 50);
+      } else if (e.key === "Enter") {
+        if (result !== "pending") {
+          handleSubmit();
+        }
+      } else if (e.key === "Escape") {
+        router.back();
+      }
+    },
+    [result, submitting, router]
+  );
+
+  useEffect(() => {
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [handleKeyDown]);
 
   if (loading) return <div className="text-sm text-slate-500">加载中...</div>;
   if (!task) return <div className="text-sm text-slate-500">任务不存在</div>;
@@ -312,9 +349,21 @@ export default function InspectionDetailPage() {
 
         <div className="space-y-5">
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">
-              质检结论 *
-            </label>
+            <div className="flex items-center justify-between mb-2">
+              <label className="block text-sm font-medium text-slate-700">
+                质检结论 *
+              </label>
+              <div className="flex items-center gap-2 text-xs text-slate-400">
+                <kbd className="px-1.5 py-0.5 bg-slate-100 border border-slate-200 rounded text-slate-600 font-mono">1</kbd>
+                <span>通过</span>
+                <kbd className="px-1.5 py-0.5 bg-slate-100 border border-slate-200 rounded text-slate-600 font-mono">2</kbd>
+                <span>仲裁</span>
+                <kbd className="px-1.5 py-0.5 bg-slate-100 border border-slate-200 rounded text-slate-600 font-mono">3</kbd>
+                <span>不通过</span>
+                <kbd className="px-1.5 py-0.5 bg-slate-100 border border-slate-200 rounded text-slate-600 font-mono">Enter</kbd>
+                <span>提交</span>
+              </div>
+            </div>
             <div className="flex flex-wrap gap-3">
               <ResultOption
                 active={result === "pass"}
@@ -323,6 +372,7 @@ export default function InspectionDetailPage() {
                 icon={<Check size={16} />}
                 label="通过"
                 desc="双标注一致且结果正确"
+                shortcut="1"
               />
               <ResultOption
                 active={result === "arbitrated"}
@@ -331,6 +381,7 @@ export default function InspectionDetailPage() {
                 icon={<Scale size={16} />}
                 label="仲裁"
                 desc="标注结果分歧，给出最终结论"
+                shortcut="2"
               />
               <ResultOption
                 active={result === "fail"}
@@ -339,6 +390,7 @@ export default function InspectionDetailPage() {
                 icon={<X size={16} />}
                 label="不通过"
                 desc="标注错误，需重新标注"
+                shortcut="3"
               />
             </div>
           </div>
@@ -510,6 +562,7 @@ function ResultOption({
   icon,
   label,
   desc,
+  shortcut,
 }: {
   active: boolean;
   onClick: () => void;
@@ -517,6 +570,7 @@ function ResultOption({
   icon: React.ReactNode;
   label: string;
   desc: string;
+  shortcut?: string;
 }) {
   const colors: Record<string, string> = {
     emerald: active
@@ -539,10 +593,15 @@ function ResultOption({
       type="button"
       onClick={onClick}
       className={cn(
-        "flex-1 min-w-[180px] text-left p-4 rounded-xl border-2 transition-all",
+        "flex-1 min-w-[180px] text-left p-4 rounded-xl border-2 transition-all relative",
         colors[color]
       )}
     >
+      {shortcut && (
+        <kbd className="absolute top-3 right-3 px-1.5 py-0.5 bg-white/80 border border-slate-200 rounded text-[10px] font-mono text-slate-500">
+          {shortcut}
+        </kbd>
+      )}
       <div className="flex items-center gap-2">
         <div className={iconColors[color]}>{icon}</div>
         <span
