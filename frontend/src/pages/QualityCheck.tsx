@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Table, Tag, Card, Tabs, Image, Descriptions, Button, Modal, Form, Radio, Input, InputNumber, Space, Statistic, Row, Col } from 'antd';
+import { Table, Tag, Card, Tabs, Image, Descriptions, Button, Modal, Form, Radio, Input, InputNumber, Space, Statistic, Row, Col, message } from 'antd';
 import { CheckCircleOutlined, EyeOutlined, ExperimentOutlined } from '@ant-design/icons';
 import { annotationApi } from '../services/api';
 import { Annotation, AnnotationType, AnnotationResult, AnnotationStatus } from '../types';
@@ -56,11 +56,13 @@ const QualityCheck: React.FC = () => {
     if (!currentRecord) return;
     try {
       const values = await form.validateFields();
+      const isReject = values.reviewResult === 'reject';
       await annotationApi.update(currentRecord.id, {
         reviewer: '质检员A',
         remark: values.remark,
+        status: isReject ? AnnotationStatus.PENDING : AnnotationStatus.REVIEWED,
       });
-      message.success('质检完成');
+      message.success(isReject ? '已驳回，标注员需重新标注' : '质检通过');
       setReviewVisible(false);
       fetchData();
     } catch (e) {
@@ -572,8 +574,25 @@ const QualityCheck: React.FC = () => {
                   <Radio value="reject">需重新标注</Radio>
                 </Radio.Group>
               </Form.Item>
-              <Form.Item name="remark" label="质检备注">
-                <Input.TextArea rows={3} placeholder="请输入质检备注" />
+              <Form.Item
+                name="remark"
+                label="质检备注"
+                rules={[
+                  {
+                    required: true,
+                    message: '驳回时请填写驳回原因',
+                    validator: (_, value) => {
+                      const reviewResult = form.getFieldValue('reviewResult');
+                      if (reviewResult === 'reject' && (!value || !value.trim())) {
+                        return Promise.reject(new Error('驳回时必须填写驳回原因'));
+                      }
+                      return Promise.resolve();
+                    },
+                  },
+                ]}
+                dependencies={['reviewResult']}
+              >
+                <Input.TextArea rows={3} placeholder="请输入质检备注，驳回时必填" />
               </Form.Item>
             </Form>
           </div>

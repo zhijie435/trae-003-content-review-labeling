@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Annotation, AnnotationStatus, AnnotationType } from './annotation.entity';
@@ -47,6 +47,10 @@ export class AnnotationService {
 
   async update(id: number, dto: UpdateAnnotationDto): Promise<Annotation> {
     const annotation = await this.findOne(id);
+    const isReject = dto.status === AnnotationStatus.PENDING && dto.reviewer;
+    if (isReject && (!dto.remark || !dto.remark.trim())) {
+      throw new BadRequestException('驳回时必须填写驳回原因');
+    }
     const shouldUpdateStatus = dto.result && annotation.status === AnnotationStatus.PENDING;
     Object.assign(annotation, dto);
     if (shouldUpdateStatus) {

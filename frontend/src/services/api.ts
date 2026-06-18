@@ -1,5 +1,5 @@
 import axios from 'axios';
-import type { Annotation, AnnotationType, AnnotationResult } from '../types';
+import type { Annotation, AnnotationType, AnnotationResult, AnnotationStatus } from '../types';
 
 const api = axios.create({
   baseURL: '/api',
@@ -41,6 +41,7 @@ export const annotationApi = {
     remark?: string;
     annotator?: string;
     reviewer?: string;
+    status?: AnnotationStatus;
   }) => api.patch<Annotation>(`/annotations/${id}`, data),
 
   remove: (id: number) =>

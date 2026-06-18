@@ -1,5 +1,5 @@
 import { IsEnum, IsOptional, IsString, IsUrl } from 'class-validator';
-import { AnnotationType, AnnotationResult } from '../annotation.entity';
+import { AnnotationType, AnnotationResult, AnnotationStatus } from '../annotation.entity';
 
 export class CreateTextAnnotationDto {
   @IsEnum(AnnotationType)
@@ -75,4 +75,8 @@ export class UpdateAnnotationDto {
   @IsOptional()
   @IsString()
   reviewer?: string;
+
+  @IsOptional()
+  @IsEnum(AnnotationStatus)
+  status?: AnnotationStatus;
 }

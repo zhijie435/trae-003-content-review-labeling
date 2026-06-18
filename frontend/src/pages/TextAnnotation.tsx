@@ -164,6 +164,14 @@ const TextAnnotation: React.FC = () => {
         destroyOnClose
       >
         <Form form={form} layout="vertical">
+          {editingRecord && editingRecord.remark && editingRecord.reviewer && (
+            <div style={{ marginBottom: 16, padding: 12, backgroundColor: '#fff7e6', border: '1px solid #ffd591', borderRadius: 4 }}>
+              <div style={{ fontWeight: 'bold', color: '#d46b08', marginBottom: 4 }}>
+                质检驳回原因：
+              </div>
+              <div style={{ color: '#873800' }}>{editingRecord.remark}</div>
+            </div>
+          )}
           <Form.Item
             name="content"
             label="文本内容"
