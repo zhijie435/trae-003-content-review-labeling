@@ -121,3 +121,67 @@ def get_batch_tasks(batch_id: int, db: Session = Depends(get_db)):
             )
         )
     return items
+
+
+@router.get("/batches/{batch_id}/stats", response_model=schemas.SamplingBatchStats)
+def get_batch_stats(batch_id: int, db: Session = Depends(get_db)):
+    batch = db.query(models.SamplingBatch).filter(models.SamplingBatch.id == batch_id).first()
+    if not batch:
+        raise HTTPException(status_code=404, detail="抽样批次不存在")
+
+    tasks = (
+        db.query(models.AnnotationTask)
+        .filter(models.AnnotationTask.id.in_(batch.task_ids))
+        .all()
+    )
+
+    total_tasks = len(tasks)
+    inspected_count = 0
+    pending_count = 0
+    pass_count = 0
+    fail_count = 0
+    arbitrated_count = 0
+    inconsistent_count = 0
+    consistent_count = 0
+    partial_count = 0
+
+    for t in tasks:
+        ann = t.annotations
+        if ann:
+            if ann.consistency_status == models.ConsistencyStatus.CONSISTENT:
+                consistent_count += 1
+            elif ann.consistency_status == models.ConsistencyStatus.INCONSISTENT:
+                inconsistent_count += 1
+            elif ann.consistency_status == models.ConsistencyStatus.PARTIAL:
+                partial_count += 1
+
+        insp = t.inspections[-1] if t.inspections else None
+        if insp and insp.result != models.InspectionResult.PENDING:
+            inspected_count += 1
+            if insp.result == models.InspectionResult.PASS:
+                pass_count += 1
+            elif insp.result == models.InspectionResult.FAIL:
+                fail_count += 1
+            elif insp.result == models.InspectionResult.ARBITRATED:
+                arbitrated_count += 1
+        else:
+            pending_count += 1
+
+    pass_rate = (pass_count + arbitrated_count) / inspected_count if inspected_count > 0 else 0.0
+    misjudgment_rate = fail_count / inspected_count if inspected_count > 0 else 0.0
+
+    return schemas.SamplingBatchStats(
+        batch_id=batch.id,
+        batch_name=batch.name,
+        total_tasks=total_tasks,
+        inspected_count=inspected_count,
+        pending_count=pending_count,
+        pass_count=pass_count,
+        fail_count=fail_count,
+        arbitrated_count=arbitrated_count,
+        pass_rate=round(pass_rate, 4),
+        misjudgment_rate=round(misjudgment_rate, 4),
+        inconsistent_count=inconsistent_count,
+        consistent_count=consistent_count,
+        partial_count=partial_count,
+    )

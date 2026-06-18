@@ -113,6 +113,28 @@ export interface SamplingRequest {
   created_by: string;
 }
 
+export interface BatchInspectionResult {
+  success_count: number;
+  failed_count: number;
+  failed_tasks: number[];
+}
+
+export interface SamplingBatchStats {
+  batch_id: number;
+  batch_name: string;
+  total_tasks: number;
+  inspected_count: number;
+  pending_count: number;
+  pass_count: number;
+  fail_count: number;
+  arbitrated_count: number;
+  pass_rate: number;
+  misjudgment_rate: number;
+  inconsistent_count: number;
+  consistent_count: number;
+  partial_count: number;
+}
+
 export interface StatisticsOut {
   total_tasks: number;
   double_annotated: number;

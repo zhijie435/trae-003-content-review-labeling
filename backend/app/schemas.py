@@ -179,6 +179,42 @@ class TaskListResponse(BaseModel):
     page_size: int
 
 
+class BatchInspectionItem(BaseModel):
+    task_id: int
+    result: InspectionResult
+    final_annotation: Optional[Dict[str, Any]] = None
+    comment: Optional[str] = None
+    score: Optional[int] = Field(None, ge=0, le=100)
+
+
+class BatchInspectionRequest(BaseModel):
+    items: List[BatchInspectionItem]
+    inspector_id: int = 1
+    inspector_name: str = "质检员-孙丽"
+
+
+class BatchInspectionResult(BaseModel):
+    success_count: int
+    failed_count: int
+    failed_tasks: List[int]
+
+
+class SamplingBatchStats(BaseModel):
+    batch_id: int
+    batch_name: str
+    total_tasks: int
+    inspected_count: int
+    pending_count: int
+    pass_count: int
+    fail_count: int
+    arbitrated_count: int
+    pass_rate: float
+    misjudgment_rate: float
+    inconsistent_count: int
+    consistent_count: int
+    partial_count: int
+
+
 class StatisticsOut(BaseModel):
     total_tasks: int
     double_annotated: int
