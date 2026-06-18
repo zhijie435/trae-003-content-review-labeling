@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import api from "@/lib/api";
@@ -47,9 +47,12 @@ export default function SamplingDetailPage() {
   const [showBatchMenu, setShowBatchMenu] = useState(false);
   const [toast, setToast] = useState<{ type: "success" | "error"; msg: string } | null>(null);
 
-  const fetchData = () => {
+  const fetchData = useCallback(() => {
     if (!batchId) return;
     setLoading(true);
+    setTasks([]);
+    setStats(null);
+    setSelectedIds(new Set());
     Promise.all([
       api.get<SamplingBatchOut>(`/sampling/batches/${batchId}`),
       api.get<TaskListItem[]>(`/sampling/batches/${batchId}/tasks`),
@@ -61,11 +64,21 @@ export default function SamplingDetailPage() {
         setStats(s.data);
       })
       .finally(() => setLoading(false));
-  };
+  }, [batchId]);
 
   useEffect(() => {
     fetchData();
-  }, [batchId]);
+  }, [fetchData]);
+
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") {
+        fetchData();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => document.removeEventListener("visibilitychange", handleVisibility);
+  }, [fetchData]);
 
   const pendingTasks = tasks.filter((t) => !t.inspection_result || t.inspection_result === "pending");
   const allSelected = pendingTasks.length > 0 && pendingTasks.every((t) => selectedIds.has(t.id));

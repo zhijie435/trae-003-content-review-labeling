@@ -12,16 +12,17 @@ from .. import models, schemas
 router = APIRouter(prefix="/api/tasks", tags=["标注任务"])
 
 
-def _get_latest_non_pending_inspection(task):
-    if not task.inspections:
-        return None
-    non_pending = [
-        insp for insp in task.inspections
-        if insp.result != models.InspectionResult.PENDING
-    ]
-    if not non_pending:
-        return None
-    return max(non_pending, key=lambda x: x.created_at)
+def _get_latest_non_pending_inspection(db: Session, task_id: int):
+    insp = (
+        db.query(models.Inspection)
+        .filter(
+            models.Inspection.task_id == task_id,
+            models.Inspection.result != models.InspectionResult.PENDING,
+        )
+        .order_by(models.Inspection.created_at.desc())
+        .first()
+    )
+    return insp
 
 
 @router.get("", response_model=schemas.TaskListResponse)
@@ -61,7 +62,7 @@ def list_tasks(
     items = []
     for t in tasks:
         ann = t.annotations
-        insp = _get_latest_non_pending_inspection(t)
+        insp = _get_latest_non_pending_inspection(db, t.id)
         items.append(
             schemas.TaskListItem(
                 id=t.id,

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import api from "@/lib/api";
@@ -18,12 +18,28 @@ export default function WorkbenchPage() {
   const [loading, setLoading] = useState(true);
   const [claimingTaskId, setClaimingTaskId] = useState<number | null>(null);
 
-  useEffect(() => {
+  const fetchPending = useCallback(() => {
+    setLoading(true);
+    setPending([]);
     api
       .get<TaskListItem[]>("/inspections/pending", { params: { inspector_id: INSPECTOR_ID } })
       .then((r) => setPending(r.data))
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    fetchPending();
+  }, [fetchPending]);
+
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") {
+        fetchPending();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => document.removeEventListener("visibilitychange", handleVisibility);
+  }, [fetchPending]);
 
   const handleStartInspection = async (taskId: number, e: React.MouseEvent) => {
     e.preventDefault();

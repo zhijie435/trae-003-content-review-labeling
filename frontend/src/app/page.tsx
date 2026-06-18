@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import api from "@/lib/api";
 import type { StatisticsOut } from "@/lib/types";
 import { formatPercent } from "@/lib/utils";
@@ -51,12 +51,28 @@ export default function DashboardPage() {
   const [stats, setStats] = useState<StatisticsOut | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  const fetchStats = useCallback(() => {
+    setLoading(true);
+    setStats(null);
     api
       .get<StatisticsOut>("/statistics")
       .then((r) => setStats(r.data))
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    fetchStats();
+  }, [fetchStats]);
+
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") {
+        fetchStats();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => document.removeEventListener("visibilitychange", handleVisibility);
+  }, [fetchStats]);
 
   if (loading) {
     return <div className="text-sm text-slate-500">加载中...</div>;

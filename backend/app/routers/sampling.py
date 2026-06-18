@@ -96,16 +96,17 @@ def get_sampling_batch(batch_id: int, db: Session = Depends(get_db)):
     return batch
 
 
-def _get_latest_non_pending_inspection(task):
-    if not task.inspections:
-        return None
-    non_pending = [
-        insp for insp in task.inspections
-        if insp.result != models.InspectionResult.PENDING
-    ]
-    if not non_pending:
-        return None
-    return max(non_pending, key=lambda x: x.created_at)
+def _get_latest_non_pending_inspection(db: Session, task_id: int):
+    insp = (
+        db.query(models.Inspection)
+        .filter(
+            models.Inspection.task_id == task_id,
+            models.Inspection.result != models.InspectionResult.PENDING,
+        )
+        .order_by(models.Inspection.created_at.desc())
+        .first()
+    )
+    return insp
 
 
 @router.get("/batches/{batch_id}/tasks", response_model=List[schemas.TaskListItem])
@@ -122,7 +123,7 @@ def get_batch_tasks(batch_id: int, db: Session = Depends(get_db)):
     items = []
     for t in tasks:
         ann = t.annotations
-        insp = _get_latest_non_pending_inspection(t)
+        insp = _get_latest_non_pending_inspection(db, t.id)
         items.append(
             schemas.TaskListItem(
                 id=t.id,
@@ -173,7 +174,7 @@ def get_batch_stats(batch_id: int, db: Session = Depends(get_db)):
             elif ann.consistency_status == models.ConsistencyStatus.PARTIAL:
                 partial_count += 1
 
-        insp = _get_latest_non_pending_inspection(t)
+        insp = _get_latest_non_pending_inspection(db, t.id)
         if insp:
             inspected_count += 1
             if insp.result == models.InspectionResult.PASS:

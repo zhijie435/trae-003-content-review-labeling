@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import api from "@/lib/api";
 import type { TaskListResponse, TaskListItem, TaskStatus, ConsistencyStatus, InspectionResult } from "@/lib/types";
@@ -18,8 +18,9 @@ export default function TasksPage() {
   const [keyword, setKeyword] = useState("");
   const [searchInput, setSearchInput] = useState("");
 
-  const fetchData = () => {
+  const fetchData = useCallback(() => {
     setLoading(true);
+    setData(null);
     const params: Record<string, any> = { page, page_size: pageSize };
     if (status) params.status = status;
     if (consistency) params.consistency = consistency;
@@ -28,11 +29,21 @@ export default function TasksPage() {
       .get<TaskListResponse>("/tasks", { params })
       .then((r) => setData(r.data))
       .finally(() => setLoading(false));
-  };
+  }, [page, pageSize, status, consistency, keyword]);
 
   useEffect(() => {
     fetchData();
-  }, [page, status, consistency, keyword]);
+  }, [fetchData]);
+
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") {
+        fetchData();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => document.removeEventListener("visibilitychange", handleVisibility);
+  }, [fetchData]);
 
   const totalPages = data ? Math.ceil(data.total / pageSize) : 0;
 

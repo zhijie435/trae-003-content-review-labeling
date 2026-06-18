@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import api from "@/lib/api";
 import type {
   SamplingBatchOut,
@@ -36,17 +36,28 @@ export default function SamplingPage() {
     null
   );
 
-  const fetchBatches = () => {
+  const fetchBatches = useCallback(() => {
     setLoading(true);
+    setBatches([]);
     api
       .get<SamplingBatchOut[]>("/sampling/batches")
       .then((r) => setBatches(r.data))
       .finally(() => setLoading(false));
-  };
+  }, []);
 
   useEffect(() => {
     fetchBatches();
-  }, []);
+  }, [fetchBatches]);
+
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") {
+        fetchBatches();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => document.removeEventListener("visibilitychange", handleVisibility);
+  }, [fetchBatches]);
 
   const handleCreate = async () => {
     if (!form.name?.trim()) {
