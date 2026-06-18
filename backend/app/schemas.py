@@ -1,156 +1,199 @@
-from pydantic import BaseModel, Field
-from typing import Optional, List
 from datetime import datetime
+from typing import Optional, List, Any, Dict
 from enum import Enum
 
-from .models import UserRole, TaskStatus, AnnotationResult, QualityStatus
+from pydantic import BaseModel, Field
 
 
-class UserBase(BaseModel):
-    username: str
-    email: Optional[str] = None
-    full_name: Optional[str] = None
-    role: UserRole = UserRole.ANNOTATOR
+class TaskStatus(str, Enum):
+    PENDING = "pending"
+    DOUBLE_ANNOTATING = "double_annotating"
+    WAITING_INSPECTION = "waiting_inspection"
+    INSPECTING = "inspecting"
+    COMPLETED = "completed"
 
 
-class UserCreate(UserBase):
-    password: str
+class ConsistencyStatus(str, Enum):
+    CONSISTENT = "consistent"
+    INCONSISTENT = "inconsistent"
+    PARTIAL = "partial"
+    UNCHECKED = "unchecked"
 
 
-class UserLogin(BaseModel):
-    username: str
-    password: str
+class InspectionResult(str, Enum):
+    PASS = "pass"
+    FAIL = "fail"
+    ARBITRATED = "arbitrated"
+    PENDING = "pending"
 
 
-class UserResponse(UserBase):
-    id: int
-    is_active: bool
-    created_at: datetime
-
-    class Config:
-        from_attributes = True
+class AnnotatorBase(BaseModel):
+    name: str
+    avatar: Optional[str] = None
 
 
-class Token(BaseModel):
-    access_token: str
-    token_type: str
-    user: UserResponse
-
-
-class TaskBase(BaseModel):
-    title: str
-    content: str
-    content_type: str = "text"
-    batch_id: Optional[str] = None
-    priority: int = 0
-
-
-class TaskCreate(TaskBase):
+class AnnotatorCreate(AnnotatorBase):
     pass
 
 
-class TaskResponse(TaskBase):
+class AnnotatorOut(AnnotatorBase):
     id: int
-    status: TaskStatus
-    annotations: List["AnnotationResponse"] = []
-    quality_checks: List["QualityCheckResponse"] = []
     created_at: datetime
-    updated_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True
 
 
-class TaskListResponse(BaseModel):
-    total: int
-    items: List[TaskResponse]
-    page: int
-    page_size: int
+class AnnotationTaskBase(BaseModel):
+    content_id: str
+    content_type: str = "text"
+    title: str
+    content: str
+    extra: Optional[Dict[str, Any]] = None
+
+
+class AnnotationTaskCreate(AnnotationTaskBase):
+    pass
+
+
+class AnnotationTaskOut(AnnotationTaskBase):
+    id: int
+    status: TaskStatus
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class AnnotationTaskDetail(AnnotationTaskOut):
+    annotations: Optional["AnnotationOut"] = None
 
 
 class AnnotationBase(BaseModel):
     task_id: int
-    result: AnnotationResult
-    remark: Optional[str] = None
-    tags: Optional[str] = None
+    annotator_a_id: int
+    annotator_b_id: int
+    result_a: Dict[str, Any]
+    result_b: Dict[str, Any]
 
 
 class AnnotationCreate(AnnotationBase):
     pass
 
 
-class AnnotationResponse(AnnotationBase):
+class AnnotationOut(BaseModel):
     id: int
-    annotator_id: int
-    annotator: Optional[UserResponse] = None
-    annotation_index: int
-    created_at: datetime
-    updated_at: Optional[datetime] = None
-
-    class Config:
-        from_attributes = True
-
-
-class QualityCheckBase(BaseModel):
     task_id: int
-    status: QualityStatus = QualityStatus.PENDING
-    final_result: Optional[AnnotationResult] = None
-    remark: Optional[str] = None
-
-
-class QualityCheckCreate(QualityCheckBase):
-    pass
-
-
-class QualityCheckUpdate(BaseModel):
-    status: Optional[QualityStatus] = None
-    final_result: Optional[AnnotationResult] = None
-    remark: Optional[str] = None
-
-
-class QualityCheckResponse(QualityCheckBase):
-    id: int
-    checker_id: int
-    checker: Optional[UserResponse] = None
-    is_sampled: bool
-    sample_batch_id: Optional[int] = None
-    created_at: datetime
-    updated_at: Optional[datetime] = None
+    annotator_a_id: int
+    annotator_b_id: int
+    annotator_a: Optional[AnnotatorOut] = None
+    annotator_b: Optional[AnnotatorOut] = None
+    result_a: Dict[str, Any]
+    result_b: Dict[str, Any]
+    annotated_at_a: Optional[datetime] = None
+    annotated_at_b: Optional[datetime] = None
+    consistency_status: ConsistencyStatus
+    consistency_score: Optional[float] = None
+    diff_detail: Optional[Dict[str, Any]] = None
 
     class Config:
         from_attributes = True
 
 
-class SampleBatchBase(BaseModel):
+class InspectionBase(BaseModel):
+    task_id: int
+    inspector_id: int
+    inspector_name: str
+
+
+class InspectionCreate(InspectionBase):
+    pass
+
+
+class InspectionSubmit(BaseModel):
+    result: InspectionResult
+    final_annotation: Optional[Dict[str, Any]] = None
+    comment: Optional[str] = None
+    score: Optional[int] = Field(None, ge=0, le=100)
+
+
+class InspectionOut(InspectionBase):
+    id: int
+    result: InspectionResult
+    final_annotation: Optional[Dict[str, Any]] = None
+    comment: Optional[str] = None
+    score: Optional[int] = None
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class SamplingRequest(BaseModel):
     name: str
-    batch_type: str = "random"
-    sample_ratio: float = 0.1
+    description: Optional[str] = None
+    sample_count: int = Field(..., gt=0)
+    strategy: str = "random"
+    consistency_filter: Optional[ConsistencyStatus] = None
+    created_by: str
 
 
-class SampleBatchCreate(SampleBatchBase):
-    pass
-
-
-class SampleBatchResponse(SampleBatchBase):
+class SamplingBatchOut(BaseModel):
     id: int
+    name: str
+    description: Optional[str] = None
     sample_count: int
-    total_count: int
-    status: str
-    created_by: Optional[int] = None
+    strategy: str
+    consistency_filter: Optional[str] = None
+    task_ids: List[int]
+    created_by: str
     created_at: datetime
 
     class Config:
         from_attributes = True
 
 
-class DoubleAnnotationStats(BaseModel):
+class TaskListItem(BaseModel):
+    id: int
+    content_id: str
+    title: str
+    content_type: str
+    status: TaskStatus
+    consistency_status: Optional[ConsistencyStatus] = None
+    consistency_score: Optional[float] = None
+    annotator_a_name: Optional[str] = None
+    annotator_b_name: Optional[str] = None
+    inspection_result: Optional[InspectionResult] = None
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class TaskListResponse(BaseModel):
+    items: List[TaskListItem]
+    total: int
+    page: int
+    page_size: int
+
+
+class StatisticsOut(BaseModel):
     total_tasks: int
-    consistent_tasks: int
-    inconsistent_tasks: int
+    double_annotated: int
+    waiting_inspection: int
+    inspected: int
+    consistent_count: int
+    inconsistent_count: int
+    partial_count: int
     consistency_rate: float
-    in_quality_check: int
-    quality_checked: int
+    pass_count: int
+    fail_count: int
+    arbitrated_count: int
+    pass_rate: float
+    total_sampling_batches: int
+    per_annotator_stats: List[Dict[str, Any]]
 
 
-class AssignTaskRequest(BaseModel):
-    annotator_ids: List[int]
+AnnotationTaskDetail.model_rebuild()
