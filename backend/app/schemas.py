@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Optional, List, Any, Dict
 from enum import Enum
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class TaskStatus(str, Enum):
@@ -134,10 +134,19 @@ class InspectionOut(InspectionBase):
 class SamplingRequest(BaseModel):
     name: str
     description: Optional[str] = None
-    sample_count: int = Field(..., gt=0)
+    sample_count: int = Field(None, gt=0)
+    sample_ratio: Optional[float] = Field(None, gt=0, le=1)
     strategy: str = "random"
     consistency_filter: Optional[ConsistencyStatus] = None
     created_by: str
+
+    @model_validator(mode="after")
+    def check_count_or_ratio(self):
+        if self.sample_count is None and self.sample_ratio is None:
+            raise ValueError("必须指定 sample_count 或 sample_ratio")
+        if self.sample_count is not None and self.sample_ratio is not None:
+            raise ValueError("不能同时指定 sample_count 和 sample_ratio")
+        return self
 
 
 class SamplingBatchOut(BaseModel):
@@ -145,6 +154,7 @@ class SamplingBatchOut(BaseModel):
     name: str
     description: Optional[str] = None
     sample_count: int
+    sample_ratio: Optional[float] = None
     strategy: str
     consistency_filter: Optional[str] = None
     task_ids: List[int]

@@ -21,10 +21,12 @@ export default function SamplingPage() {
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
 
+  const [sampleMode, setSampleMode] = useState<"count" | "ratio">("count");
   const [form, setForm] = useState<Partial<SamplingRequest>>({
     name: "",
     description: "",
     sample_count: 10,
+    sample_ratio: 0.1,
     strategy: "random",
     consistency_filter: undefined,
     created_by: "质检员-孙丽",
@@ -51,19 +53,32 @@ export default function SamplingPage() {
       setToast({ type: "error", msg: "请输入批次名称" });
       return;
     }
-    if (!form.sample_count || form.sample_count <= 0) {
+    if (sampleMode === "count" && (!form.sample_count || form.sample_count <= 0)) {
       setToast({ type: "error", msg: "请输入有效的抽样数量" });
       return;
     }
+    if (sampleMode === "ratio" && (!form.sample_ratio || form.sample_ratio <= 0 || form.sample_ratio > 1)) {
+      setToast({ type: "error", msg: "请输入有效的抽样比例（0-1）" });
+      return;
+    }
+
+    const submitData = { ...form };
+    if (sampleMode === "count") {
+      delete submitData.sample_ratio;
+    } else {
+      delete submitData.sample_count;
+    }
+
     setSubmitting(true);
     try {
-      await api.post<SamplingBatchOut>("/sampling", form);
+      await api.post<SamplingBatchOut>("/sampling", submitData);
       setToast({ type: "success", msg: "抽样批次创建成功" });
       setShowModal(false);
       setForm({
         name: "",
         description: "",
         sample_count: 10,
+        sample_ratio: 0.1,
         strategy: "random",
         consistency_filter: undefined,
         created_by: "质检员-孙丽",
@@ -188,6 +203,11 @@ export default function SamplingPage() {
                       样本数：
                       <span className="text-slate-700">{b.sample_count}</span>
                     </span>
+                    {b.sample_ratio && (
+                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-blue-50 text-blue-600 rounded">
+                        按比例 {(b.sample_ratio * 100).toFixed(0)}% 生成
+                      </span>
+                    )}
                     {b.consistency_filter && (
                       <span>
                         一致性筛选：
@@ -255,24 +275,84 @@ export default function SamplingPage() {
                   }
                 />
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1.5">
-                    抽样数量 *
-                  </label>
-                  <input
-                    type="number"
-                    min={1}
-                    className="input"
-                    value={form.sample_count || 10}
-                    onChange={(e) =>
-                      setForm({
-                        ...form,
-                        sample_count: parseInt(e.target.value) || 0,
-                      })
-                    }
-                  />
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                  抽样方式
+                </label>
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    className={`flex-1 py-2 px-4 rounded-lg border text-sm font-medium transition-colors ${
+                      sampleMode === "count"
+                        ? "border-primary-500 bg-primary-50 text-primary-700"
+                        : "border-slate-200 text-slate-600 hover:bg-slate-50"
+                    }`}
+                    onClick={() => setSampleMode("count")}
+                  >
+                    按固定数量
+                  </button>
+                  <button
+                    type="button"
+                    className={`flex-1 py-2 px-4 rounded-lg border text-sm font-medium transition-colors ${
+                      sampleMode === "ratio"
+                        ? "border-primary-500 bg-primary-50 text-primary-700"
+                        : "border-slate-200 text-slate-600 hover:bg-slate-50"
+                    }`}
+                    onClick={() => setSampleMode("ratio")}
+                  >
+                    按比例自动
+                  </button>
                 </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                {sampleMode === "count" ? (
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                      抽样数量 *
+                    </label>
+                    <input
+                      type="number"
+                      min={1}
+                      className="input"
+                      value={form.sample_count || 10}
+                      onChange={(e) =>
+                        setForm({
+                          ...form,
+                          sample_count: parseInt(e.target.value) || 0,
+                        })
+                      }
+                    />
+                  </div>
+                ) : (
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                      抽样比例 *
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        step={0.01}
+                        min={0.01}
+                        max={1}
+                        className="input pr-10"
+                        value={form.sample_ratio || 0.1}
+                        onChange={(e) =>
+                          setForm({
+                            ...form,
+                            sample_ratio: parseFloat(e.target.value) || 0,
+                          })
+                        }
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">
+                        ({((form.sample_ratio || 0.1) * 100).toFixed(0)}%)
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-500 mt-1">
+                      范围：1% - 100%，系统按符合条件的任务数自动计算
+                    </p>
+                  </div>
+                )}
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1.5">
                     抽样策略

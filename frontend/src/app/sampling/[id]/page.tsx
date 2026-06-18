@@ -258,6 +258,21 @@ export default function SamplingDetailPage() {
             </dd>
           </div>
           <div>
+            <dt className="text-slate-500 text-xs mb-1">抽样方式</dt>
+            <dd className="text-slate-800 font-medium">
+              {batch.sample_ratio ? (
+                <span className="inline-flex items-center gap-1">
+                  按比例
+                  <span className="px-1.5 py-0.5 bg-blue-50 text-blue-600 rounded text-xs">
+                    {(batch.sample_ratio * 100).toFixed(0)}%
+                  </span>
+                </span>
+              ) : (
+                "固定数量"
+              )}
+            </dd>
+          </div>
+          <div>
             <dt className="text-slate-500 text-xs mb-1">一致性筛选</dt>
             <dd className="text-slate-800 font-medium">
               {batch.consistency_filter || "全部"}

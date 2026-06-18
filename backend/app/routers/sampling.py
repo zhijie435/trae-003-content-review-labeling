@@ -30,7 +30,12 @@ def create_sampling_batch(req: schemas.SamplingRequest, db: Session = Depends(ge
     if not available_tasks:
         raise HTTPException(status_code=400, detail="没有符合条件的任务可抽样")
 
-    sample_count = min(req.sample_count, len(available_tasks))
+    if req.sample_ratio is not None:
+        sample_count = max(1, int(len(available_tasks) * req.sample_ratio))
+    else:
+        sample_count = req.sample_count
+
+    sample_count = min(sample_count, len(available_tasks))
 
     if req.strategy == "inconsistent_first":
         available_tasks.sort(
@@ -55,6 +60,7 @@ def create_sampling_batch(req: schemas.SamplingRequest, db: Session = Depends(ge
         name=req.name,
         description=req.description,
         sample_count=sample_count,
+        sample_ratio=req.sample_ratio,
         strategy=req.strategy,
         consistency_filter=req.consistency_filter.value if req.consistency_filter else None,
         task_ids=task_ids,

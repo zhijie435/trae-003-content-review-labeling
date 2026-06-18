@@ -97,6 +97,7 @@ export interface SamplingBatchOut {
   name: string;
   description: string | null;
   sample_count: number;
+  sample_ratio: number | null;
   strategy: string;
   consistency_filter: string | null;
   task_ids: number[];
@@ -107,7 +108,8 @@ export interface SamplingBatchOut {
 export interface SamplingRequest {
   name: string;
   description?: string;
-  sample_count: number;
+  sample_count?: number;
+  sample_ratio?: number;
   strategy: string;
   consistency_filter?: ConsistencyStatus;
   created_by: string;

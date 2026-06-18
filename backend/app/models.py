@@ -102,6 +102,7 @@ class SamplingBatch(Base):
     name = Column(String(255), nullable=False)
     description = Column(Text, nullable=True)
     sample_count = Column(Integer, nullable=False)
+    sample_ratio = Column(Float, nullable=True)
     strategy = Column(String(50), default="random")
     consistency_filter = Column(String(20), nullable=True)
     task_ids = Column(JSON, nullable=False)
