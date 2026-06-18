@@ -62,6 +62,17 @@ export class AnnotationService {
     }
   }
 
+  async getSampleForReview(count: number = 10): Promise<{ samples: Annotation[]; total: number; sampled: number }> {
+    const allForReview = await this.findAllForReview();
+    const shuffled = [...allForReview].sort(() => Math.random() - 0.5);
+    const sampled = shuffled.slice(0, count);
+    return {
+      samples: sampled,
+      total: allForReview.length,
+      sampled: sampled.length,
+    };
+  }
+
   async seedMockData(): Promise<{ text: number; image: number }> {
     const textSamples = [
       { content: '今天天气真好，适合出去走走', result: null },

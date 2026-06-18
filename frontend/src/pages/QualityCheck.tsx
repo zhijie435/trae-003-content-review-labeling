@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Table, Tag, Card, Tabs, Image, Descriptions, Button, Modal, Form, Radio, Input, message } from 'antd';
-import { CheckCircleOutlined, EyeOutlined } from '@ant-design/icons';
+import { Table, Tag, Card, Tabs, Image, Descriptions, Button, Modal, Form, Radio, Input, InputNumber, Space, Statistic, Row, Col } from 'antd';
+import { CheckCircleOutlined, EyeOutlined, ExperimentOutlined } from '@ant-design/icons';
 import { annotationApi } from '../services/api';
 import { Annotation, AnnotationType, AnnotationResult, AnnotationStatus } from '../types';
 import {
@@ -15,6 +15,11 @@ import dayjs from 'dayjs';
 const QualityCheck: React.FC = () => {
   const [data, setData] = useState<Annotation[]>([]);
   const [loading, setLoading] = useState(false);
+  const [sampleData, setSampleData] = useState<Annotation[]>([]);
+  const [sampleLoading, setSampleLoading] = useState(false);
+  const [sampleCount, setSampleCount] = useState(5);
+  const [sampleTotal, setSampleTotal] = useState(0);
+  const [sampleSampled, setSampleSampled] = useState(0);
   const [detailVisible, setDetailVisible] = useState(false);
   const [currentRecord, setCurrentRecord] = useState<Annotation | null>(null);
   const [reviewVisible, setReviewVisible] = useState(false);
@@ -60,6 +65,21 @@ const QualityCheck: React.FC = () => {
       fetchData();
     } catch (e) {
       console.error(e);
+    }
+  };
+
+  const handleSample = async () => {
+    setSampleLoading(true);
+    try {
+      const res = await annotationApi.getReviewSample(sampleCount);
+      setSampleData(res.data.samples);
+      setSampleTotal(res.data.total);
+      setSampleSampled(res.data.sampled);
+      message.success(`已抽取 ${res.data.sampled} 条样本（共 ${res.data.total} 条待检）`);
+    } catch (e) {
+      message.error('抽样失败');
+    } finally {
+      setSampleLoading(false);
     }
   };
 
@@ -219,6 +239,118 @@ const QualityCheck: React.FC = () => {
   const imageData = data.filter(d => d.type === AnnotationType.IMAGE);
 
   const tabItems = [
+    {
+      key: 'sample',
+      label: '抽样质检',
+      children: (
+        <Card>
+          <Card size="small" style={{ marginBottom: 16 }}>
+            <Space wrap>
+              <span>抽样数量：</span>
+              <InputNumber
+                min={1}
+                max={100}
+                value={sampleCount}
+                onChange={(val) => setSampleCount(val || 5)}
+              />
+              <Button
+                type="primary"
+                icon={<ExperimentOutlined />}
+                onClick={handleSample}
+                loading={sampleLoading}
+              >
+                开始抽样
+              </Button>
+              {sampleTotal > 0 && (
+                <span style={{ marginLeft: 16 }}>
+                  <Tag color="blue">待检总数：{sampleTotal}</Tag>
+                  <Tag color="green">已抽样：{sampleSampled}</Tag>
+                </span>
+              )}
+            </Space>
+          </Card>
+          <Table
+            rowKey="id"
+            columns={[
+              { title: 'ID', dataIndex: 'id', width: 80 },
+              {
+                title: '类型',
+                dataIndex: 'type',
+                width: 100,
+                render: (t: AnnotationType) => (
+                  <Tag color={t === AnnotationType.TEXT ? 'blue' : 'green'}>
+                    {ANNOTATION_TYPE_MAP[t]}
+                  </Tag>
+                ),
+              },
+              {
+                title: '内容',
+                dataIndex: 'content',
+                render: (_: any, r: Annotation) =>
+                  r.type === AnnotationType.TEXT ? (
+                    <div style={{ maxWidth: 300 }}>{r.content}</div>
+                  ) : (
+                    r.imageUrl && <Image width={80} height={60} src={r.imageUrl} style={{ objectFit: 'cover' }} />
+                  ),
+              },
+              {
+                title: '标注结果',
+                dataIndex: 'result',
+                width: 120,
+                render: (result?: AnnotationResult) =>
+                  result ? (
+                    <Tag color={ANNOTATION_RESULT_COLOR[result]}>
+                      {ANNOTATION_RESULT_MAP[result]}
+                    </Tag>
+                  ) : (
+                    <Tag color="default">未标注</Tag>
+                  ),
+              },
+              {
+                title: '状态',
+                dataIndex: 'status',
+                width: 100,
+                render: (status: AnnotationStatus) => (
+                  <Tag color={ANNOTATION_STATUS_COLOR[status]}>
+                    {ANNOTATION_STATUS_MAP[status]}
+                  </Tag>
+                ),
+              },
+              { title: '标注员', dataIndex: 'annotator', width: 100, render: (a?: string) => a || '-' },
+              {
+                title: '标注时间',
+                dataIndex: 'updatedAt',
+                width: 180,
+                render: (t: string) => dayjs(t).format('YYYY-MM-DD HH:mm:ss'),
+              },
+              {
+                title: '操作',
+                key: 'action',
+                width: 160,
+                render: (_: any, record: Annotation) => (
+                  <span>
+                    <Button type="link" icon={<EyeOutlined />} onClick={() => handleViewDetail(record)}>
+                      查看
+                    </Button>
+                    <Button
+                      type="link"
+                      icon={<CheckCircleOutlined />}
+                      onClick={() => handleReview(record)}
+                    >
+                      质检
+                    </Button>
+                  </span>
+                ),
+              },
+            ]}
+            dataSource={sampleData}
+            loading={sampleLoading}
+            pagination={{ pageSize: 10 }}
+            locale={{ emptyText: '请点击"开始抽样"抽取质检样本' }}
+          />
+        </Card>
+      ),
+    },
     {
       key: 'all',
       label: `全部 (${data.length})`,

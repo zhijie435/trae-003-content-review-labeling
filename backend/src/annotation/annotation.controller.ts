@@ -22,6 +22,11 @@ export class AnnotationController {
     return this.annotationService.findAllForReview();
   }
 
+  @Get('review/sample')
+  getSampleForReview(@Query('count') count?: number) {
+    return this.annotationService.getSampleForReview(count);
+  }
+
   @Get('seed')
   seedMockData() {
     return this.annotationService.seedMockData();

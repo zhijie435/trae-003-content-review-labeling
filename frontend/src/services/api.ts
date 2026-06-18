@@ -48,6 +48,9 @@ export const annotationApi = {
 
   seed: () =>
     api.get<{ text: number; image: number }>('/annotations/seed'),
+
+  getReviewSample: (count?: number) =>
+    api.get<{ samples: Annotation[]; total: number; sampled: number }>('/annotations/review/sample', { params: count ? { count } : {} }),
 };
 
 export default api;
