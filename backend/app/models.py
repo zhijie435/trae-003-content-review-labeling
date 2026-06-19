@@ -1,7 +1,7 @@
 from datetime import datetime
 from enum import Enum as PyEnum
 
-from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, Enum, Float, JSON
+from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, Enum, Float, JSON, Index
 from sqlalchemy.orm import relationship
 
 from .database import Base
@@ -96,6 +96,17 @@ class Inspection(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     task = relationship("AnnotationTask", back_populates="inspections")
+
+    __table_args__ = (
+        Index(
+            "uq_inspection_task_inspector_pending",
+            task_id,
+            inspector_id,
+            unique=True,
+            sqlite_where=result == "pending",
+            postgresql_where=result == "pending",
+        ),
+    )
 
 
 class SamplingBatch(Base):

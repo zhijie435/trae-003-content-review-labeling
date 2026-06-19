@@ -1,6 +1,8 @@
 from datetime import datetime, timedelta
 from typing import List, Optional, Tuple
 
+from sqlalchemy import and_
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from .. import models, schemas
@@ -9,7 +11,13 @@ from .task_service import TaskService
 
 
 class InspectionService:
-    """质检服务 - 质检的领取、提交、批量操作"""
+    """质检服务 - 质检的领取、提交、批量操作
+
+    并发安全策略：
+    - try_claim: DB 原子 UPDATE ... WHERE（见 workflow_service）
+    - PENDING inspection 去重: (task_id, inspector_id)  WHERE result='pending' 唯一索引
+      + 捕获 IntegrityError 后重试查询 + 更新
+    """
 
     @staticmethod
     def claim_task(
@@ -23,7 +31,7 @@ class InspectionService:
             return False, "任务不存在", None
 
         success, error = WorkflowService.try_claim(
-            task, inspector_id, inspector_name, models.TaskStatus.WAITING_INSPECTION
+            db, task, inspector_id, inspector_name, models.TaskStatus.WAITING_INSPECTION
         )
         if not success:
             if task.claimed_by and task.claimed_by != inspector_id:
@@ -75,29 +83,35 @@ class InspectionService:
 
         if task.status == models.TaskStatus.WAITING_INSPECTION:
             success, error = WorkflowService.try_claim(
-                task, inspector_id, inspector_name, models.TaskStatus.WAITING_INSPECTION
+                db, task, inspector_id, inspector_name, models.TaskStatus.WAITING_INSPECTION
             )
             if not success:
                 return None, error
 
-        existing = (
-            db.query(models.Inspection)
-            .filter(
-                models.Inspection.task_id == task_id,
-                models.Inspection.inspector_id == inspector_id,
-                models.Inspection.result == models.InspectionResult.PENDING,
+        # ------------------------------------------------------------------
+        # 查询/创建 PENDING inspection —— 配合唯一约束 + IntegrityError 重试
+        # 保证并发下永远只有 1 条 (task_id, inspector_id, result=PENDING)
+        # ------------------------------------------------------------------
+        for attempt in range(2):
+            existing = (
+                db.query(models.Inspection)
+                .filter(
+                    models.Inspection.task_id == task_id,
+                    models.Inspection.inspector_id == inspector_id,
+                    models.Inspection.result == models.InspectionResult.PENDING,
+                )
+                .first()
             )
-            .first()
-        )
 
-        if existing:
-            existing.result = inspection_in.result
-            existing.final_annotation = inspection_in.final_annotation
-            existing.comment = inspection_in.comment
-            existing.score = inspection_in.score
-            existing.updated_at = datetime.utcnow()
-            inspection = existing
-        else:
+            if existing:
+                existing.result = inspection_in.result
+                existing.final_annotation = inspection_in.final_annotation
+                existing.comment = inspection_in.comment
+                existing.score = inspection_in.score
+                existing.updated_at = datetime.utcnow()
+                inspection = existing
+                break
+
             inspection = models.Inspection(
                 task_id=task_id,
                 inspector_id=inspector_id,
@@ -108,6 +122,16 @@ class InspectionService:
                 score=inspection_in.score,
             )
             db.add(inspection)
+            try:
+                db.flush()
+                break
+            except IntegrityError:
+                # ----- 并发：另一个线程先创建了 PENDING 记录 -----
+                db.rollback()
+                # 第 2 次循环会查到 existing，然后 update 它
+                continue
+        else:
+            return None, "提交冲突，请稍后重试"
 
         InspectionService._apply_status_transition(task, inspection_in.result, inspector_id)
 

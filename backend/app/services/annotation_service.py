@@ -23,7 +23,7 @@ class AnnotationService:
             return False, "任务不存在", None
 
         success, error = WorkflowService.try_claim(
-            task, annotator_id, annotator_name, models.TaskStatus.DOUBLE_ANNOTATING
+            db, task, annotator_id, annotator_name, models.TaskStatus.DOUBLE_ANNOTATING
         )
         if not success:
             return False, error, None
