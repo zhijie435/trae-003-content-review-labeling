@@ -1,0 +1,21 @@
+{
+  "name": "biaozhu-platform",
+  "version": "1.0.0",
+  "private": true,
+  "description": "内容审核标注平台 - 前后端一体化工程",
+  "scripts": {
+    "dev": "concurrently -n frontend,backend -c cyan,magenta \"npm:dev:frontend\" \"npm:dev:backend\"",
+    "dev:frontend": "cd frontend && npm run dev",
+    "dev:backend": "cd backend && source .venv/bin/activate && uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload",
+    "install:all": "npm install && cd frontend && npm install && cd ../backend && npm install",
+    "install:py": "cd backend && python3 -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt",
+    "build:frontend": "cd frontend && npm run build",
+    "start:frontend": "cd frontend && npm run start",
+    "start:backend": "cd backend && source .venv/bin/activate && uvicorn app.main:app --host 0.0.0.0 --port 8001",
+    "test:backend": "cd backend && source .venv/bin/activate && python -m pytest app/tests -v",
+    "test:frontend": "cd frontend && npm run lint"
+  },
+  "devDependencies": {
+    "concurrently": "^9.0.1"
+  }
+}
